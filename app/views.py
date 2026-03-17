@@ -1,12 +1,13 @@
 import os
 import re
 from app import app, db, login_manager
-from flask import render_template, request, redirect, url_for, flash, session, abort
+from flask import render_template, request, redirect, url_for, flash, session, abort, send_from_directory
 from flask_login import login_user, logout_user, current_user, login_required
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash
 from app.models import UserProfile
 from app.forms import LoginForm, UploadForm
+
 
 
 ###
@@ -63,6 +64,50 @@ def login():
 @login_manager.user_loader
 def load_user(id):
     return db.session.execute(db.select(UserProfile).filter_by(id=id)).scalar()
+
+###
+# Helpers and routes for uploaded files.
+###
+
+def get_uploaded_images():
+    """Return a list of image filenames in the uploads folder."""
+    rootdir = os.getcwd()
+    upload_dir = os.path.join(rootdir, app.config['UPLOAD_FOLDER'])
+    uploaded_images = []
+    
+    # Iterate through the uploads folder and grab the filenames
+    for subdir, dirs, files in os.walk(upload_dir):
+        for file in files:
+            # Add only image files to the list
+            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                uploaded_images.append(file)
+                
+    return uploaded_images
+
+
+@app.route('/uploads/<filename>')
+def get_image(filename):
+    """Serve a specific image from the uploads folder."""
+    rootdir = os.getcwd()
+    # Serve the specific image file from the upload directory
+    return send_from_directory(os.path.join(rootdir, app.config['UPLOAD_FOLDER']), filename)
+
+
+@app.route('/files')
+@login_required
+def files():
+    """List uploaded image files in a grid."""
+    # Call the helper function to get the list of filenames
+    images = get_uploaded_images()
+    # Pass the list to the template
+    return render_template('files.html', images=images)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user() # Flask-Login function to clear the user session
+    flash('You have successfully logged out.', 'success')
+    return redirect(url_for('home')) # Redirects to the home page
 
 ###
 # The functions below should be applicable to all Flask apps.
